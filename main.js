@@ -1,8 +1,8 @@
 import express from 'express'
 import { createServer } from 'http'
 import { makeExecutableSchema } from '@graphql-tools/schema'
-import { SubscriptionServer } from 'subscriptions-transport-ws'
-import { execute, subscribe } from 'graphql'
+import { WebSocketServer } from 'ws'
+import { useServer } from 'graphql-ws/lib/use/ws'
 import { ApolloServer } from 'apollo-server-express'
 import mongoose from 'mongoose'
 import {
@@ -11,7 +11,6 @@ import {
 } from 'apollo-server-core'
 import typeDefs from './graphql/typeDefs/index.js'
 import resolvers from './graphql/resolvers/index.js'
-
 ;(async function () {
   const app = express()
   const httpServer = createServer(app)
@@ -21,10 +20,9 @@ import resolvers from './graphql/resolvers/index.js'
     resolvers
   })
 
-  const subscriptions = SubscriptionServer.create(
-    { schema, execute, subscribe },
-    { server: httpServer, path: '/graphql' }
-  )
+  const wsServer = new WebSocketServer({ server: httpServer, path: '/graphql' })
+
+  const serverCleanUp = useServer({ schema }, wsServer)
 
   const server = new ApolloServer({
     schema,
@@ -42,7 +40,7 @@ import resolvers from './graphql/resolvers/index.js'
         async serverWillStart() {
           return {
             async drainServer() {
-              subscriptions.close()
+              await serverCleanUp.dispose()
             }
           }
         }
